@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup as BS
 from bs4 import NavigableString
 import os
 import json
-import pickle
+import tqdm
 
 
 def IEEEdecode(obj):
@@ -49,7 +49,7 @@ class IEEEJournal:
         if self.subjectList:
             info = info + '\nSubjects: '
             for ele in self.subjectList:
-                info = info + str(ele) + ' || '
+                info = info + str(ele.encode('utf-8')) + ' || '
         info = info + '\n'
         return info
 
@@ -71,18 +71,21 @@ if os.path.isfile(journal_pkl):
     print('Loading cached IEEE journals...')
     journal_list = json.load(open(journal_pkl, 'r'), object_hook=IEEEdecode)
 else:   
-    journal_list = []
+    print('Retrieving IEEE journals... ')
+    journal_list = [0]
     r = requests.get('https://www.ieee.org/publications/periodicals.html')
     soup = BS(r.text, 'html.parser')
 
     ##page-container > div > div:nth-child(3) > div.col-sm-9.col-xs-12 > div.section-header-container > div.rte.text.parbase > ul
     div = soup.select('#page-container > div > .row > div.col-sm-9.col-xs-12 > div.section-header-container > div.rte.text.parbase > ul')
-    for ul in div:
-        for li in ul.children:
-            link = li.contents[0]['href']
-            name = li.contents[0].contents[0].encode('utf-8')
-            journal_list.append(IEEEJournal(li.contents[0]['href'], li.contents[0].contents[0]))
-    raw_input('!!!')
+    with tqdm.tqdm(total=sum([len(x.contents) for x in div]), ncols=120, leave = False) as pbar:
+        for ul in div:
+            for li in ul.children:
+                pbar.update()
+                link = li.contents[0]['href']
+                name = li.contents[0].contents[0].encode('utf-8')
+                journal_list.append(IEEEJournal(li.contents[0]['href'], li.contents[0].contents[0]))
+#    raw_input('!!!')
     json.dump(journal_list, open(journal_pkl, 'w'), cls=IEEEencoder)
 
 
@@ -95,33 +98,51 @@ else:
 
 prefix = 'https://ieeexplore.ieee.org/xpl/'
 target = []
-if os.path.isfile(journal_pkl):
-    for j in journal_list:
-        r = requests.get(j.href)
-        soup = BS(r.text, 'html.parser')
-        impact = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics > div.jrnl-metrics.cf > a.metric.bg-org > span.num')[0]
-        eigen = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics > div.jrnl-metrics.cf > a.metric.bg-dkblu > span.num')[0]
-        influence = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics > div.jrnl-metrics.cf > a.metric.bg-blu > span.num')[0]
-        j.score(impact.contents[0], eigen.contents[0], influence.contents[0])
+target_pkl = 'ieeeTarget.json'
+if journal_list[0] == 0 :
+    journal_list[0] = 1
+    print('Retrieving journal info... ')
+    with tqdm.tqdm(total=len(journal_list), ncols=120, leave=False) as pbar:
+        for j in journal_list[1:]:
+            pbar.update(1)
+            #print(j.name.encode('utf-8'))
+            try:
+                r = requests.get(j.href)
+                soup = BS(r.text, 'html.parser')
+            except:
+                continue
+            try:
+                impact = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics > div.jrnl-metrics.cf > a.metric.bg-org > span.num')[0]
+                eigen = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics > div.jrnl-metrics.cf > a.metric.bg-dkblu > span.num')[0]
+                influence = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics > div.jrnl-metrics.cf > a.metric.bg-blu > span.num')[0]
+                j.score(impact.contents[0], eigen.contents[0], influence.contents[0])
+            except:
+                j.score(0,0,0)
 
-        scope = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics > div.section.sec-style-a.jrnl-aims > div > span > a')[0]
-        r = requests.get(prefix+scope['href'])
-        soup = BS(r.text.encode('utf-8'), 'html.parser')
-        description = soup.select('#main > div.block.blk-style-wht.article-blk > p > p')[0]
-        subjects = [i.get_text() for i in soup.select('#main > div > div.col-2-290.cf.jrnl-abt-lists > div.col-grd.col-1-grd > div > ul > li')]
-        j.description(description.get_text())
-        j.subjects(subjects)
+            try:
+                scope = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics > div.section.sec-style-a.jrnl-aims > div > span > a')[0]
+                r = requests.get(prefix+scope['href'])
+                soup = BS(r.text.encode('utf-8'), 'html.parser')
+                description = soup.select('#main > div.block.blk-style-wht.article-blk > p > p')[0]
+                subjects = [i.get_text() for i in soup.select('#main > div > div.col-2-290.cf.jrnl-abt-lists > div.col-grd.col-1-grd > div > ul > li')]
+                j.description(description.get_text())
+                j.subjects(subjects)
+            except:
+                j.description('')
+                j.subjects([])
 
+        
     json.dump(journal_list, open(journal_pkl, 'w'), cls=IEEEencoder)
-else:
-    journal_list = json.load(open(journal_pkl, 'r'), object_hook=IEEEdecode)
 
 
-for j in journal_list:
-    print(j)
-    k = raw_input('Next...')
-    if k == 1:
-        target.append(j.name)
+for j in journal_list[1:]:
+    try:
+        print(j)
+        k = raw_input('Next...')
+    except:
+        continue
+    if k == '1':
+        print('Recorded!')
+        target.append(j)
 
-
-
+json.dump(target, open(target_pkl, 'w'), cls=IEEEencoder)
