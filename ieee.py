@@ -66,28 +66,27 @@ else:
 #impact: #journal-page-bdy > div.block.cf.jrn-aims-metrics > div.jrnl-metrics.cf > a.metric.bg-org > span.num
 #eigen: #journal-page-bdy > div.block.cf.jrn-aims-metrics > div.jrnl-metrics.cf > a.metric.bg-dkblu > span.num
 #influence: #journal-page-bdy > div.block.cf.jrn-aims-metrics > div.jrnl-metrics.cf > a.metric.bg-blu > span.num
-#scope: #journal-page-bdy > div.block.cf.jrn-aims-metrics.no-feat > div.section.sec-style-a.jrnl-aims.compact > div > span > a
+#scope: #journal-page-bdy > div.block.cf.jrn-aims-metrics > div.section.sec-style-a.jrnl-aims > div > span > a
 #description: #journal-page-bdy > div.block.cf.jrn-aims-metrics.no-feat > div.section.sec-style-a.jrnl-aims.compact > div > div > p:nth-child(2)
 #suject: #main > div > div:nth-child(9) > div.col-grd.col-1-grd > div > ul
 
+prefix = 'https://ieeexplore.ieee.org/xpl/'
 for j in journal_list:
     r = requests.get(j.href)
     soup = BS(r.text, 'html.parser')
     impact = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics > div.jrnl-metrics.cf > a.metric.bg-org > span.num')[0]
     eigen = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics > div.jrnl-metrics.cf > a.metric.bg-dkblu > span.num')[0]
     influence = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics > div.jrnl-metrics.cf > a.metric.bg-blu > span.num')[0]
-    description = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics.no-feat')
     j.score(impact.contents[0], eigen.contents[0], influence.contents[0])
-    
+
+    scope = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics > div.section.sec-style-a.jrnl-aims > div > span > a')[0]
+    r = requests.get(prefix+scope['href'])
+
+
+
     print(j)
-    print(description)
+    
     k = raw_input('Next...')
     print(k.decode('ascii'))
-    if (k == 27):
-        print(' Move on')
-        continue
-    else:
-        scope = soup.select('#journal-page-bdy > div.block.cf.jrn-aims-metrics.no-feat > div.section.sec-style-a.jrnl-aims.compact > div > span > a')[0]
-        r = requests.get(scope['href'])
 
 
